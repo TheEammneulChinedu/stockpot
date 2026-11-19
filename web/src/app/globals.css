@@ -1,0 +1,151 @@
+:root {
+  /* Stockpot palette — cool, icy, Base-adjacent */
+  --glacier: #eef4ff; /* page */
+  --glacier-2: #e2ecff; /* recessed surfaces */
+  --snow: #ffffff;
+  --harbor: #0b1f4b; /* ink */
+  --harbor-2: #4a5b85; /* secondary ink */
+  --harbor-3: #8796b8; /* tertiary / hairlines on light */
+  --cobalt: #2350ff; /* primary, money you can take */
+  --cobalt-deep: #1636c7;
+  --lagoon: #12b5c9; /* contributions flowing in */
+  --frost: #bfe3ff; /* locked collateral */
+  --frost-edge: #7cc4f5;
+  --iris: #7b6cff; /* the collector / stock */
+  --line: rgba(11, 31, 75, 0.12);
+
+  --font-display: "Unbounded Variable", "Unbounded", system-ui, sans-serif;
+  --font-body: "Instrument Sans Variable", "Instrument Sans", system-ui, sans-serif;
+
+  /* type scale (≈1.25, Bringhurst-style restraint) */
+  --t-xs: 0.8125rem;
+  --t-sm: 0.9375rem;
+  --t-md: 1.0625rem;
+  --t-lg: 1.375rem;
+  --t-xl: 2rem;
+  --t-2xl: clamp(2.5rem, 5vw, 4.25rem);
+
+  --radius-s: 10px;
+  --radius-m: 18px;
+  --radius-l: 28px;
+  --wrap: 1180px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--glacier);
+  color: var(--harbor);
+  font-family: var(--font-body);
+  font-size: var(--t-md);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "tnum" 1;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+body > main {
+  flex: 1;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid var(--cobalt);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+.wrap {
+  width: min(var(--wrap), 100% - 40px);
+  margin-inline: auto;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 22px;
+  border-radius: 999px;
+  border: 1.5px solid transparent;
+  font-weight: 600;
+  font-size: var(--t-sm);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s, transform 0.15s, border-color 0.15s;
+}
+.btn:active {
+  transform: translateY(1px);
+}
+.btn-primary {
+  background: var(--cobalt);
+  color: var(--snow);
+}
+.btn-primary:hover {
+  background: var(--cobalt-deep);
+}
+.btn-ghost {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--harbor);
+}
+.btn-ghost:hover {
+  border-color: var(--harbor-3);
+  background: var(--snow);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

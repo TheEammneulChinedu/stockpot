@@ -1,0 +1,142 @@
+/**
+ * Stockpot keeper: one tick = walk every pot and push it forward.
+ *
+ *   1. pullAll()      collect this round from members who use auto-pay
+ *   2. settleRound()  once everyone paid (or the deadline passed) and the price feed is live:
+ *                     get a 0x quote for swapAmount() USDC → stock, then settle with that calldata
+ *   3. claimFor()     push withdrawable stock / USDC to members' wallets
+ *
+ * Everything here is permissionless on the contracts: the keeper is a convenience, never trusted.
+ * Every transaction carries the Builder Code suffix so Base attributes the activity to Stockpot.
+ *
+ * Run on a schedule (e.g. every 10 minutes via GitHub Actions or Vercel Cron):
+ *   KEEPER_PRIVATE_KEY=0x… FACTORY_ADDRESS=0x… ZEROX_API_KEY=… BUILDER_CODE=… npm run tick
+ */
+import { Attribution } from "ox/erc8021";
+import { createPublicClient, createWalletClient, http, type Address, type Hex } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { base } from "viem/chains";
+import { potAbi } from "./Pot.js";
+import { potFactoryAbi } from "./PotFactory.js";
+
+const env = (k: string, required = true) => {
+  const v = process.env[k];
+  if (!v && required) throw new Error(`Missing env ${k}`);
+  return v ?? "";
+};
+
+const USDC: Address = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+const FACTORY = (env("FACTORY_ADDRESS", false) || "0x7Dfcb2Ca510afE1766D63c2CA6EE67C6e7Be1313") as Address; // Base mainnet PotFactory
+const account = privateKeyToAccount(env("KEEPER_PRIVATE_KEY") as Hex);
+const transport = http(env("BASE_RPC_URL", false) || undefined);
+const pub = createPublicClient({ chain: base, transport });
+const wallet = createWalletClient({ chain: base, transport, account });
+const BUILDER_CODE = env("BUILDER_CODE", false);
+const dataSuffix: Hex | undefined = BUILDER_CODE ? Attribution.toDataSuffix({ codes: [BUILDER_CODE] }) : undefined;
+const DRY = process.env.DRY_RUN === "1";
+
+const log = (...a: unknown[]) => console.log(new Date().toISOString(), ...a);
+
+async function send(pot: Address, functionName: string, args: readonly unknown[] = []) {
+  // Simulate first so a revert costs nothing and the reason is logged.
+  const { request } = await pub.simulateContract({
+    account,
+    address: pot,
+    abi: potAbi,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    functionName: functionName as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    args: args as any,
+    dataSuffix,
+  });
+  if (DRY) return log("  dry-run", functionName);
+  const hash = await wallet.writeContract(request);
+  await pub.waitForTransactionReceipt({ hash });
+  log("  sent", functionName, hash);
+}
+
+/** 0x Swap API v2 (allowance-holder flow): the pot approves and calls the AllowanceHolder. */
+async function quote(sellAmount: bigint, buyToken: Address, taker: Address) {
+  const qs = new URLSearchParams({
+    chainId: "8453",
+    sellToken: USDC,
+    buyToken,
+    sellAmount: sellAmount.toString(),
+    taker,
+    slippageBps: "50",
+  });
+  const res = await fetch(`https://api.0x.org/swap/allowance-holder/quote?${qs}`, {
+    headers: { "0x-api-key": env("ZEROX_API_KEY"), "0x-version": "v2" },
+  });
+  if (!res.ok) throw new Error(`0x quote ${res.status}: ${await res.text()}`);
+  const q = (await res.json()) as { transaction: { to: Address; data: Hex }; buyAmount: string };
+  return { target: q.transaction.to, spender: q.transaction.to, data: q.transaction.data, buyAmount: BigInt(q.buyAmount) };
+}
+
+async function tickPot(pot: Address) {
+  const c = { address: pot, abi: potAbi } as const;
+  const [status, round, members, deadline, stock] = await Promise.all([
+    pub.readContract({ ...c, functionName: "status" }),
+    pub.readContract({ ...c, functionName: "round" }),
+    pub.readContract({ ...c, functionName: "members" }),
+    pub.readContract({ ...c, functionName: "roundDeadline" }),
+    pub.readContract({ ...c, functionName: "stock" }),
+  ]);
+  const name = await pub.readContract({ ...c, functionName: "name" });
+  log(`pot ${pot} "${name}" status=${status} round=${round}`);
+
+  if (status === 1) {
+    const paid = await Promise.all(
+      members.map((_, i) => pub.readContract({ ...c, functionName: "paid", args: [round, BigInt(i)] })),
+    );
+    const pullable = members.some((m, i) => m.hasPermission && !paid[i]);
+    if (pullable) await send(pot, "pullAll").catch((e) => log("  pullAll failed", e.shortMessage ?? e.message));
+
+    const paidCount = await pub.readContract({ ...c, functionName: "paidCount", args: [round] });
+    const now = BigInt(Math.floor(Date.now() / 1000));
+    if (paidCount === BigInt(members.length) || now >= deadline) {
+      try {
+        // Reverts with StalePrice on weekends / holidays: we simply try again next tick.
+        await pub.readContract({ ...c, functionName: "quoteMinOut", args: [1_000_000n] });
+        const amount = await pub.readContract({ ...c, functionName: "swapAmount" });
+        if (amount > 0n) {
+          const q = await quote(amount, stock, pot);
+          const minOut = await pub.readContract({ ...c, functionName: "quoteMinOut", args: [amount] });
+          if (q.buyAmount < minOut) {
+            log(`  quote ${q.buyAmount} below guard ${minOut}; waiting for a better price`);
+          } else {
+            await send(pot, "settleRound", [q.target, q.spender, q.data]);
+          }
+        } else {
+          await send(pot, "settleRound", ["0x0000000000000000000000000000000000000000", "0x0000000000000000000000000000000000000000", "0x"]);
+        }
+      } catch (e) {
+        log("  settle skipped:", (e as { shortMessage?: string }).shortMessage ?? (e as Error).message);
+      }
+    }
+  }
+
+  // Push withdrawable balances to members (pull-claim stays available if a transfer is blocked).
+  const fresh = await pub.readContract({ ...c, functionName: "members" });
+  for (const m of fresh) {
+    if (m.claimableStock > 0n || m.claimableUsdc > 0n) {
+      await send(pot, "claimFor", [m.account]).catch((e) => log("  claimFor failed", m.account, e.shortMessage ?? e.message));
+    }
+  }
+}
+
+async function main() {
+  const count = await pub.readContract({ address: FACTORY, abi: potFactoryAbi, functionName: "potCount" });
+  log(`keeper ${account.address} · ${count} pots${DRY ? " · dry run" : ""}`);
+  for (let i = 0n; i < count; i++) {
+    const pot = await pub.readContract({ address: FACTORY, abi: potFactoryAbi, functionName: "allPots", args: [i] });
+    const status = await pub.readContract({ address: pot, abi: potAbi, functionName: "status" });
+    if (status === 0) continue;
+    await tickPot(pot).catch((e) => log(`pot ${pot} error`, e.message));
+  }
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

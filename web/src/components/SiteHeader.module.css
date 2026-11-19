@@ -1,0 +1,44 @@
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: color-mix(in srgb, var(--glacier) 82%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--line);
+}
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 68px;
+}
+.brand {
+  text-decoration: none;
+}
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  font-size: var(--t-sm);
+  font-weight: 500;
+}
+.nav a {
+  text-decoration: none;
+  color: var(--harbor-2);
+}
+.nav a:hover {
+  color: var(--harbor);
+}
+.nav .start {
+  color: var(--cobalt);
+  font-weight: 600;
+}
+@media (max-width: 760px) {
+  .nav a:not(.start) {
+    display: none;
+  }
+  .nav {
+    gap: 14px;
+  }
+}
