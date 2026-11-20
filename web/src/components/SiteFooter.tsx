@@ -10,7 +10,7 @@ export function SiteFooter() {
           <div style={{ display: "flex", gap: 22 }}>
             <Link href="/start">Start a pot</Link>
             <Link href="/stats">Live stats</Link>
-            <a href="https://github.com/" target="_blank" rel="noreferrer">
+            <a href="https://github.com/TheEammneulChinedu/stockpot" target="_blank" rel="noreferrer">
               Source code
             </a>
           </div>
