@@ -1,11 +1,13 @@
 "use client";
 
-import { useAccount, useConnect, useDisconnect } from "wagmi";
+import { useState } from "react";
+import { useAccount, useDisconnect } from "wagmi";
+import { WalletPicker } from "./WalletPicker";
 
 export function ConnectButton({ label = "Sign in" }: { label?: string }) {
   const { address, isConnected } = useAccount();
-  const { connect, connectors, isPending } = useConnect();
   const { disconnect } = useDisconnect();
+  const [open, setOpen] = useState(false);
 
   if (isConnected && address) {
     return (
@@ -14,15 +16,12 @@ export function ConnectButton({ label = "Sign in" }: { label?: string }) {
       </button>
     );
   }
-  const base = connectors.find((c) => c.id === "baseAccount") ?? connectors[0];
   return (
-    <button
-      className="btn btn-ghost"
-      style={{ minHeight: 40 }}
-      disabled={isPending || !base}
-      onClick={() => base && connect({ connector: base })}
-    >
-      {isPending ? "Opening…" : label}
-    </button>
+    <>
+      <button className="btn btn-ghost" style={{ minHeight: 40 }} onClick={() => setOpen(true)}>
+        {label}
+      </button>
+      <WalletPicker open={open} onClose={() => setOpen(false)} />
+    </>
   );
 }

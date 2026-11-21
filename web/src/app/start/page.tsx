@@ -11,6 +11,7 @@ import { EMPTY_PERMISSION, toContractPermission } from "@/lib/pot";
 import { lockFor, money } from "@/lib/potMath";
 import { LAUNCH_STOCKS } from "@/lib/stocks";
 import { useStockAddresses } from "@/lib/useStockAddresses";
+import { useWallet } from "@/lib/useWallet";
 import { dataSuffix, FACTORY_ADDRESS, USDC_ADDRESS } from "@/lib/wagmi";
 import a from "../app.module.css";
 
@@ -27,6 +28,7 @@ export default function StartPage() {
   const client = usePublicClient();
   const { writeContractAsync } = useWriteContract();
   const stocks = useStockAddresses();
+  const { isBaseAccount, ensureBase } = useWallet();
 
   const [name, setName] = useState("");
   const [members, setMembers] = useState(5);
@@ -46,6 +48,7 @@ export default function StartPage() {
     if (!ready || !client || !address || !FACTORY_ADDRESS || !stockAddress) return;
     setError("");
     try {
+      await ensureBase();
       const params = {
         name: name.trim(),
         stock: stockAddress,
@@ -57,7 +60,7 @@ export default function StartPage() {
       let permission = EMPTY_PERMISSION;
       let signature: `0x${string}` = "0x";
 
-      if (autoPay) {
+      if (autoPay && isBaseAccount) {
         setStep("permission");
         const predicted = await client.readContract({
           address: FACTORY_ADDRESS as Address,
@@ -190,14 +193,21 @@ export default function StartPage() {
             <span className={a.help}>{RHYTHMS[rhythm].help}</span>
           </div>
 
-          <label className={a.toggle}>
-            <input type="checkbox" checked={autoPay} onChange={(e) => setAutoPay(e.target.checked)} />
-            <span>
-              <strong>Pay automatically.</strong> One approval lets this pot take up to {money(amount * 2)} of USDC per{" "}
-              {RHYTHMS[rhythm].days === 1 ? "day" : "week"}, only for this pot. You can revoke it any time in your Base
-              Account.
-            </span>
-          </label>
+          {isBaseAccount || !isConnected ? (
+            <label className={a.toggle}>
+              <input type="checkbox" checked={autoPay} onChange={(e) => setAutoPay(e.target.checked)} />
+              <span>
+                <strong>Pay automatically.</strong> One approval lets this pot take up to {money(amount * 2)} of USDC
+                per {RHYTHMS[rhythm].days === 1 ? "day" : "week"}, only for this pot. Needs a Base Account; you can
+                revoke it any time.
+              </span>
+            </label>
+          ) : (
+            <p className={a.help}>
+              With this wallet you&apos;ll tap <strong>Pay</strong> once each round. Auto-pay is available when you sign in
+              with a Base Account.
+            </p>
+          )}
 
           {!FACTORY_ADDRESS && (
             <p className={a.notice}>Pots open on Base mainnet soon. The contracts are being deployed.</p>

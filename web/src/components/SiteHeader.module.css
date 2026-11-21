@@ -23,19 +23,19 @@
   font-size: var(--t-sm);
   font-weight: 500;
 }
-.nav a {
+.nav > a {
   text-decoration: none;
   color: var(--harbor-2);
 }
-.nav a:hover {
+.nav > a:hover {
   color: var(--harbor);
 }
-.nav .start {
+.nav > .start {
   color: var(--cobalt);
   font-weight: 600;
 }
 @media (max-width: 760px) {
-  .nav a:not(.start) {
+  .nav > a:not(.start) {
     display: none;
   }
   .nav {

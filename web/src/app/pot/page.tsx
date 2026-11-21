@@ -9,6 +9,7 @@ import { ConnectButton } from "@/components/ConnectButton";
 import { potAbi } from "@/lib/abi/Pot";
 import { inviteText, shortAddr, STATUS, toContractPermission, usd } from "@/lib/pot";
 import { useStockAddresses } from "@/lib/useStockAddresses";
+import { useWallet } from "@/lib/useWallet";
 import { dataSuffix, USDC_ADDRESS } from "@/lib/wagmi";
 import a from "../app.module.css";
 
@@ -42,6 +43,7 @@ function PotDetail({ pot, isNew }: { pot: Address; isNew: boolean }) {
   const client = usePublicClient();
   const { writeContractAsync } = useWriteContract();
   const stocks = useStockAddresses();
+  const { isBaseAccount, ensureBase } = useWallet();
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
@@ -121,6 +123,7 @@ function PotDetail({ pot, isNew }: { pot: Address; isNew: boolean }) {
     setBusy(label);
     setError("");
     try {
+      await ensureBase();
       const hash = await fn();
       if (hash && client) await client.waitForTransactionReceipt({ hash });
       await Promise.all([refetch(), refetchPaid(), refetchAllowance()]);
@@ -250,7 +253,7 @@ function PotDetail({ pot, isNew }: { pot: Address; isNew: boolean }) {
           {!isConnected && (
             <>
               <h2>Sign in to join or pay</h2>
-              <ConnectButton label="Sign in with Base" />
+              <ConnectButton label="Sign in" />
             </>
           )}
 
@@ -258,17 +261,29 @@ function PotDetail({ pot, isNew }: { pot: Address; isNew: boolean }) {
             <>
               <h2>Join this pot</h2>
               <p className={a.help}>
-                You&apos;ll collect in round {list.length + 1}. Auto-pay lets the pot take up to {usd(contribution ? contribution * 2n : undefined)} per{" "}
-                {days === 1 ? "day" : "period"}, only for this pot.
+                You&apos;ll collect in round {list.length + 1}.
+                {isBaseAccount &&
+                  ` Auto-pay lets the pot take up to ${usd(contribution ? contribution * 2n : undefined)} per ${days === 1 ? "day" : "period"}, only for this pot.`}
               </p>
               <div className={a.actions}>
-                <button className="btn btn-primary" onClick={joinAuto} disabled={!!busy}>
-                  {busy === "join" ? "Confirm in your wallet…" : "Join with auto-pay"}
-                </button>
-                <button className="btn btn-ghost" onClick={joinManual} disabled={!!busy}>
-                  Join, I&apos;ll pay each round
-                </button>
+                {isBaseAccount ? (
+                  <>
+                    <button className="btn btn-primary" onClick={joinAuto} disabled={!!busy}>
+                      {busy === "join" ? "Confirm in your wallet…" : "Join with auto-pay"}
+                    </button>
+                    <button className="btn btn-ghost" onClick={joinManual} disabled={!!busy}>
+                      Join, I&apos;ll pay each round
+                    </button>
+                  </>
+                ) : (
+                  <button className="btn btn-primary" onClick={joinManual} disabled={!!busy}>
+                    {busy === "join" ? "Confirm in your wallet…" : "Join this pot"}
+                  </button>
+                )}
               </div>
+              {!isBaseAccount && (
+                <p className={a.help}>You&apos;ll tap Pay once each round. Auto-pay needs a Base Account.</p>
+              )}
             </>
           )}
 
