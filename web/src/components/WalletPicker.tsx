@@ -7,6 +7,7 @@ import s from "./WalletPicker.module.css";
 type Props = { open: boolean; onClose: () => void };
 
 const isMobile = () => typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+const isAndroid = () => typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
 const hasInjected = () => typeof window !== "undefined" && Boolean((window as { ethereum?: unknown }).ethereum);
 
 /**
@@ -17,10 +18,10 @@ export function WalletPicker({ open, onClose }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const { connectors, connectAsync, isPending, variables } = useConnect();
   const [error, setError] = useState("");
-  const [env, setEnv] = useState({ mobile: false, injected: false, url: "" });
+  const [env, setEnv] = useState({ mobile: false, android: false, injected: false, url: "" });
 
   useEffect(() => {
-    setEnv({ mobile: isMobile(), injected: hasInjected(), url: window.location.href });
+    setEnv({ mobile: isMobile(), android: isAndroid(), injected: hasInjected(), url: window.location.href });
   }, [open]);
 
   useEffect(() => {
@@ -119,16 +120,23 @@ export function WalletPicker({ open, onClose }: Props) {
           </section>
         )}
 
-        {!walletConnect && browserWallets.length === 0 && env.mobile && (
-          <section className={s.group} aria-label="Open in a wallet app">
-            <p className={s.note}>Open Stockpot inside your wallet app&apos;s browser to sign in:</p>
-            <a className={s.option} href={`https://metamask.app.link/dapp/${host}`}>
-              <span className={s.iconFallback}>M</span>
-              <span className={s.text}>
-                <strong>Open in MetaMask</strong>
-                <span>Opens this page in MetaMask&apos;s browser</span>
-              </span>
-            </a>
+        {browserWallets.length === 0 && env.mobile && (
+          <section className={s.group} aria-label="Open inside a wallet app">
+            <p className={s.note}>
+              {walletConnect ? "Or open Stockpot inside your wallet's browser:" : "Open Stockpot inside your wallet's browser to sign in:"}
+            </p>
+            <div className={s.chips}>
+              {/* Official in-app browser links (OKX, Bitget, Trust docs). MetaMask is left out until its
+                  false "deceptive site" flag is cleared. Trust Wallet has no
+                  in-app browser on iPhone, so it is offered on Android only. */}
+              <a className={s.chip} href={`okx://wallet/dapp/url?dappUrl=${encodeURIComponent(env.url)}`}>OKX</a>
+              <a className={s.chip} href={`https://bkcode.vip?action=dapp&url=${encodeURIComponent(env.url)}`}>Bitget</a>
+              {env.android && (
+                <a className={s.chip} href={`https://link.trustwallet.com/open_url?coin_id=60&url=${encodeURIComponent(env.url)}`}>
+                  Trust
+                </a>
+              )}
+            </div>
           </section>
         )}
 
