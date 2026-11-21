@@ -4,6 +4,8 @@
 
 The new mechanic is that **the stock you collect is your collateral**. When you collect, the part of your payout worth 1.25x what you still owe stays frozen in the pot and thaws a slice with each payment you make. If you skip a round after collecting, that round's collector is paid in kind from your frozen stock. If you skip before collecting, the amount is deducted from your own payout and repaid to whoever was short. That makes circles with strangers safe.
 
+**Try it: [usestockpot.vercel.app](https://usestockpot.vercel.app)**
+
 Built in public for **Base Stocks Maxxing Season** (Nov 5 to Dec 5, 2026), track Meme and Community Economies (also entered in Programmable Stock Markets).
 
 ## Live on Base mainnet
@@ -22,8 +24,19 @@ Enabled stocks: NVDAc, AAPLc, TSLAc, MSFTc, AMZNc, GOOGLc, METAc. Router: 0x All
 | --- | --- |
 | `contracts/` | Foundry. `PotFactory.sol` (config, CREATE2 pots, Chainlink pricing) and `Pot.sol` (one circle). 17 tests |
 | `web/` | Next.js 15 static app: homepage with interactive demo, `/start`, `/pot?address=`, `/stats` |
-| `keeper/` | One-shot script that pulls contributions, settles due rounds via a 0x quote, and pushes stock to members |
+| `keeper/` | One-shot script that pulls contributions, settles due rounds via the best swap quote (Hydrex first, falling back to 0x), and pushes stock to members |
 | `.github/workflows/keeper.yml` | Runs the keeper every 10 minutes on weekdays |
+
+## Signing in
+
+Any wallet on Base works.
+
+- **Desktop:** a browser wallet (MetaMask, Rabby, OKX and others are detected automatically), or scan a QR code with a phone wallet through WalletConnect.
+- **Phone, in Chrome or Safari:** WalletConnect opens Trust Wallet, MetaMask, OKX and others to sign, then returns to the browser. There are also one-tap links that open Stockpot inside OKX, Bitget or Trust Wallet (Android) so everything happens in the wallet.
+- **Phone, inside a wallet's own browser:** the wallet is detected and signs in with one tap.
+- **Base Account:** also offered, and it's the only wallet that supports **auto-pay** (spend permissions). Everyone else joins with "I'll pay each round". Base Account sign-in goes through keys.coinbase.com, which is blocked in some countries (including Nigeria), so it's never the only option.
+
+If the wallet is on another network, the app asks it to switch to Base before any transaction. Every transaction carries the Builder Code `bc_ft9no3f0` (ERC-8021).
 
 ## How a round settles
 
@@ -53,7 +66,7 @@ forge script script/DevSeed.s.sol --rpc-url http://127.0.0.1:8545 --broadcast
 
 # web
 cd ../web
-cp .env.example .env.local      # fill in factory, builder code, stock addresses
+cp .env.production .env.local   # live factory, builder code, stocks, WalletConnect project ID (NEXT_PUBLIC_WC_PROJECT_ID)
 npm install && npm run dev      # or: npm run build → static site in out/
 
 # keeper (one tick)
@@ -72,7 +85,8 @@ OWNER=0xYourOwnerAddress ./deploy.sh   # uses the encrypted keystore account "st
 Stock, feed and router addresses are built into `script/Deploy.s.sol` (Coinbase B20 stocks use **8 decimals**; the contracts read decimals from each token). Remaining items:
 
 - [ ] Spend permissions inside the Base App mini-app context (docs mark them "coming soon"). The fallback is the "I'll pay each round" join
-- [ ] Register a Builder Code and set `NEXT_PUBLIC_BUILDER_CODE` plus the keeper `BUILDER_CODE`
+- [x] Register a Builder Code and set `NEXT_PUBLIC_BUILDER_CODE` plus the keeper `BUILDER_CODE`
+- [ ] Allowlist the Hydrex router once its address is confirmed (until then the keeper settles through 0x)
 - [ ] First real round with a small pot: check the 0x fill lands inside the 1% guard
 
 ## Not legal or investment advice
