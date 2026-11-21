@@ -1,16 +1,50 @@
 import { createConfig, http } from "wagmi";
 import { base } from "wagmi/chains";
-import { baseAccount, injected } from "wagmi/connectors";
+import { baseAccount, injected, walletConnect } from "wagmi/connectors";
 import { Attribution } from "ox/erc8021";
 import type { Address, Hex } from "viem";
 
 export const APP_NAME = "Stockpot";
 
+export const SITE_URL = "https://usestockpot.vercel.app";
+
+/**
+ * WalletConnect (Reown) lets phone users sign in from Safari/Chrome with Trust Wallet, MetaMask,
+ * OKX and hundreds more: the wallet app opens to approve, then returns to the site. It is the
+ * only route for Trust Wallet on iPhone (Apple removed its in-app browser) and does not depend on
+ * coinbase.com, which is blocked on some networks. Project ID from cloud.reown.com (public value).
+ */
+export const WC_PROJECT_ID = process.env.NEXT_PUBLIC_WC_PROJECT_ID ?? "";
+
 export const wagmiConfig = createConfig({
   chains: [base],
   connectors: [
-    baseAccount({ appName: APP_NAME, appLogoUrl: "https://stockpot.app/icon.png" }),
+    baseAccount({ appName: APP_NAME }),
     injected(),
+    ...(WC_PROJECT_ID
+      ? [
+          walletConnect({
+            projectId: WC_PROJECT_ID,
+            showQrModal: true,
+            metadata: {
+              name: APP_NAME,
+              description: "Savings circles that pay out in stocks, on Base",
+              url: SITE_URL,
+              icons: [],
+            },
+            qrModalOptions: {
+              themeMode: "light",
+              themeVariables: { "--wcm-accent-color": "#2350FF", "--wcm-z-index": "1000" },
+              // WalletConnect explorer IDs: Trust Wallet, MetaMask, OKX Wallet shown first
+              explorerRecommendedWalletIds: [
+                "4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0",
+                "c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96",
+                "971e689d0a5be527bac79629b4ee9b925e82208e5168b733496a09c0faed0709",
+              ],
+            },
+          }),
+        ]
+      : []),
   ],
   transports: { [base.id]: http(process.env.NEXT_PUBLIC_BASE_RPC_URL) },
   ssr: true,

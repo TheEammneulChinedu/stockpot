@@ -30,17 +30,21 @@ export function WalletPicker({ open, onClose }: Props) {
     if (!open && d.open) d.close();
   }, [open]);
 
-  const { baseAccount, browserWallets } = useMemo(() => {
+  const { baseAccount, browserWallets, walletConnect } = useMemo(() => {
     const baseAccount = connectors.find((c) => c.id === "baseAccount");
     // Wallets that announce themselves (EIP-6963) appear by name; fall back to the generic one.
     const announced = connectors.filter((c) => c.type === "injected" && c.id !== "injected");
     const generic = connectors.find((c) => c.id === "injected");
     const browserWallets = announced.length > 0 ? announced : generic && env.injected ? [generic] : [];
-    return { baseAccount, browserWallets };
+    const walletConnect = connectors.find((c) => c.id === "walletConnect");
+    return { baseAccount, browserWallets, walletConnect };
   }, [connectors, env.injected]);
 
   async function pick(c: Connector) {
     setError("");
+    // WalletConnect opens its own window with the wallet list; ours sits in the browser's top
+    // layer and would cover it, so close ours first.
+    if (c.id === "walletConnect") onClose();
     try {
       await connectAsync({ connector: c });
       onClose();
@@ -83,16 +87,25 @@ export function WalletPicker({ open, onClose }: Props) {
           </section>
         )}
 
-        {browserWallets.length === 0 && env.mobile && (
-          <section className={s.group} aria-label="Open in a wallet app">
-            <p className={s.note}>Open Stockpot inside your wallet app to sign in:</p>
-            <a className={s.option} href={`https://link.trustwallet.com/open_url?coin_id=60&url=${encodeURIComponent(env.url)}`}>
-              <span className={s.iconFallback}>T</span>
+        {walletConnect && (
+          <section className={s.group} aria-label="Wallet apps">
+            <button className={s.option} onClick={() => pick(walletConnect)} disabled={isPending}>
+              <span className={s.iconFallback}>W</span>
               <span className={s.text}>
-                <strong>Open in Trust Wallet</strong>
-                <span>Opens this page in Trust Wallet&apos;s browser</span>
+                <strong>{env.mobile ? "Trust Wallet, MetaMask & more" : "Phone wallet (scan a QR code)"}</strong>
+                <span>
+                  {env.mobile
+                    ? "Pick your wallet app, approve there, and come back here."
+                    : "Trust Wallet, MetaMask, OKX and more, via WalletConnect."}
+                </span>
               </span>
-            </a>
+            </button>
+          </section>
+        )}
+
+        {!walletConnect && browserWallets.length === 0 && env.mobile && (
+          <section className={s.group} aria-label="Open in a wallet app">
+            <p className={s.note}>Open Stockpot inside your wallet app&apos;s browser to sign in:</p>
             <a className={s.option} href={`https://metamask.app.link/dapp/${host}`}>
               <span className={s.iconFallback}>M</span>
               <span className={s.text}>
@@ -103,7 +116,7 @@ export function WalletPicker({ open, onClose }: Props) {
           </section>
         )}
 
-        {browserWallets.length === 0 && !env.mobile && (
+        {browserWallets.length === 0 && !env.mobile && !walletConnect && (
           <p className={s.note}>
             No browser wallet found. Install MetaMask, Rabby or OKX Wallet for your browser, then reload this page.
           </p>
