@@ -47,9 +47,25 @@ export function WalletPicker({ open, onClose }: Props) {
     if (c.id === "walletConnect") onClose();
     try {
       await connectAsync({ connector: c });
+      try {
+        sessionStorage.removeItem("stockpot-reloaded");
+      } catch {}
       onClose();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "";
+      // The page was loaded from an older deploy and a code file it needs was replaced.
+      // Reload once to pick up the current version instead of showing an error.
+      if (/Loading chunk|ChunkLoadError|dynamically imported module/i.test(msg)) {
+        try {
+          if (!sessionStorage.getItem("stockpot-reloaded")) {
+            sessionStorage.setItem("stockpot-reloaded", "1");
+            window.location.reload();
+            return;
+          }
+        } catch {}
+        setError("Stockpot was just updated. Refresh the page and try again.");
+        return;
+      }
       if (c.id === "baseAccount") {
         setError(
           "The Base Account window didn't open. On some networks, including in Nigeria, coinbase.com is blocked. Use a browser wallet instead, or turn on a VPN and try again.",
