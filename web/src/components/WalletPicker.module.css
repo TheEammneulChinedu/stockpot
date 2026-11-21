@@ -107,6 +107,8 @@
   gap: 8px;
 }
 .chip {
+  font: inherit;
+  cursor: pointer;
   padding: 10px 16px;
   border-radius: 999px;
   border: 1px solid var(--line);

@@ -104,7 +104,7 @@ export function WalletPicker({ open, onClose }: Props) {
           </section>
         )}
 
-        {walletConnect && (
+        {walletConnect && !(env.mobile && browserWallets.length > 0) && (
           <section className={s.group} aria-label="Wallet apps">
             <button className={s.option} onClick={() => pick(walletConnect)} disabled={isPending}>
               <span className={s.iconFallback}>W</span>
@@ -127,15 +127,20 @@ export function WalletPicker({ open, onClose }: Props) {
             </p>
             <div className={s.chips}>
               {/* Official in-app browser links (OKX, Bitget, Trust docs). MetaMask is left out until its
-                  false "deceptive site" flag is cleared. Trust Wallet has no
-                  in-app browser on iPhone, so it is offered on Android only. */}
-              <a className={s.chip} href={`okx://wallet/dapp/url?dappUrl=${encodeURIComponent(env.url)}`}>OKX</a>
+                  false "deceptive site" flag is cleared. Tested on iPhone: Trust's trust:// link opens the page in Trust's browser. */}
+              <a className={s.chip} href={`https://web3.okx.com/download?deeplink=${encodeURIComponent(`okx://wallet/dapp/url?dappUrl=${encodeURIComponent(env.url)}`)}`}>OKX</a>
               <a className={s.chip} href={`https://bkcode.vip?action=dapp&url=${encodeURIComponent(env.url)}`}>Bitget</a>
-              {env.android && (
-                <a className={s.chip} href={`https://link.trustwallet.com/open_url?coin_id=60&url=${encodeURIComponent(env.url)}`}>
-                  Trust
-                </a>
-              )}
+              {/* Android: Trust's web link. iPhone: its app link, the only one that opens the page there. */}
+              <a
+                className={s.chip}
+                href={
+                  env.android
+                    ? `https://link.trustwallet.com/open_url?coin_id=60&url=${encodeURIComponent(env.url)}`
+                    : `trust://open_url?coin_id=60&url=${encodeURIComponent(env.url)}`
+                }
+              >
+                Trust
+              </a>
             </div>
           </section>
         )}
