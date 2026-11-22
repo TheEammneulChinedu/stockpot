@@ -7,6 +7,17 @@ import s from "./WalletPicker.module.css";
 type Props = { open: boolean; onClose: () => void };
 
 const isMobile = () => typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+/** How to get back to the browser after approving in the wallet app. */
+const backHint = () => {
+  if (typeof navigator === "undefined") return "come back here";
+  const ua = navigator.userAgent;
+  if (/iPhone|iPad|iPod/i.test(ua)) {
+    const browser = /CriOS/i.test(ua) ? "Chrome" : /FxiOS/i.test(ua) ? "Firefox" : /EdgiOS/i.test(ua) ? "Edge" : "Safari";
+    return `switch back to ${browser}`;
+  }
+  if (/Android/i.test(ua)) return "switch back to this browser";
+  return "come back here";
+};
 const hasInjected = () => typeof window !== "undefined" && Boolean((window as { ethereum?: unknown }).ethereum);
 
 /**
@@ -17,10 +28,10 @@ export function WalletPicker({ open, onClose }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const { connectors, connectAsync, isPending, variables } = useConnect();
   const [error, setError] = useState("");
-  const [env, setEnv] = useState({ mobile: false, injected: false, url: "" });
+  const [env, setEnv] = useState({ mobile: false, injected: false, url: "", back: "come back here" });
 
   useEffect(() => {
-    setEnv({ mobile: isMobile(), injected: hasInjected(), url: window.location.href });
+    setEnv({ mobile: isMobile(), injected: hasInjected(), url: window.location.href, back: backHint() });
   }, [open]);
 
   useEffect(() => {
@@ -110,7 +121,7 @@ export function WalletPicker({ open, onClose }: Props) {
                 <strong>{env.mobile ? "Trust Wallet, MetaMask & more" : "Phone wallet (scan a QR code)"}</strong>
                 <span>
                   {env.mobile
-                    ? "Pick your wallet app, approve there, and come back here."
+                    ? `Pick your wallet app and approve. Then ${env.back}.`
                     : "Trust Wallet, MetaMask, OKX and more, via WalletConnect."}
                 </span>
               </span>
