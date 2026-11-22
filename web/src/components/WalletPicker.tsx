@@ -7,7 +7,6 @@ import s from "./WalletPicker.module.css";
 type Props = { open: boolean; onClose: () => void };
 
 const isMobile = () => typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-const isAndroid = () => typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
 const hasInjected = () => typeof window !== "undefined" && Boolean((window as { ethereum?: unknown }).ethereum);
 
 /**
@@ -18,10 +17,10 @@ export function WalletPicker({ open, onClose }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const { connectors, connectAsync, isPending, variables } = useConnect();
   const [error, setError] = useState("");
-  const [env, setEnv] = useState({ mobile: false, android: false, injected: false, url: "" });
+  const [env, setEnv] = useState({ mobile: false, injected: false, url: "" });
 
   useEffect(() => {
-    setEnv({ mobile: isMobile(), android: isAndroid(), injected: hasInjected(), url: window.location.href });
+    setEnv({ mobile: isMobile(), injected: hasInjected(), url: window.location.href });
   }, [open]);
 
   useEffect(() => {
@@ -77,7 +76,6 @@ export function WalletPicker({ open, onClose }: Props) {
     }
   }
 
-  const host = env.url.replace(/^https?:\/\//, "");
   const pending = (c: Connector) => isPending && variables?.connector && "id" in variables.connector && variables.connector.id === c.id;
 
   return (
@@ -120,29 +118,8 @@ export function WalletPicker({ open, onClose }: Props) {
           </section>
         )}
 
-        {browserWallets.length === 0 && env.mobile && (
-          <section className={s.group} aria-label="Open inside a wallet app">
-            <p className={s.note}>
-              {walletConnect ? "Or open Stockpot inside your wallet's browser:" : "Open Stockpot inside your wallet's browser to sign in:"}
-            </p>
-            <div className={s.chips}>
-              {/* Official in-app browser links (OKX, Bitget, Trust docs). MetaMask is left out until its
-                  false "deceptive site" flag is cleared. Tested on iPhone: Trust's trust:// link opens the page in Trust's browser. */}
-              <a className={s.chip} href={`https://web3.okx.com/download?deeplink=${encodeURIComponent(`okx://wallet/dapp/url?dappUrl=${encodeURIComponent(env.url)}`)}`}>OKX</a>
-              <a className={s.chip} href={`https://bkcode.vip?action=dapp&url=${encodeURIComponent(env.url)}`}>Bitget</a>
-              {/* Android: Trust's web link. iPhone: its app link, the only one that opens the page there. */}
-              <a
-                className={s.chip}
-                href={
-                  env.android
-                    ? `https://link.trustwallet.com/open_url?coin_id=60&url=${encodeURIComponent(env.url)}`
-                    : `trust://open_url?coin_id=60&url=${encodeURIComponent(env.url)}`
-                }
-              >
-                Trust
-              </a>
-            </div>
-          </section>
+        {browserWallets.length === 0 && env.mobile && !walletConnect && (
+          <p className={s.note}>Open this page in your wallet app&apos;s browser to sign in.</p>
         )}
 
         {browserWallets.length === 0 && !env.mobile && !walletConnect && (

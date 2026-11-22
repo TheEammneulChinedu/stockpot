@@ -32,7 +32,7 @@ Enabled stocks: NVDAc, AAPLc, TSLAc, MSFTc, AMZNc, GOOGLc, METAc. Router: 0x All
 Any wallet on Base works.
 
 - **Desktop:** a browser wallet (MetaMask, Rabby, OKX and others are detected automatically), or scan a QR code with a phone wallet through WalletConnect.
-- **Phone, in Chrome or Safari:** WalletConnect opens Trust Wallet, MetaMask, OKX and others to sign, then returns to the browser. There are also one-tap links that open Stockpot inside OKX, Bitget or Trust Wallet (Android) so everything happens in the wallet.
+- **Phone, in Chrome or Safari:** WalletConnect opens Trust Wallet, MetaMask, OKX and others to sign, then returns to the browser.
 - **Phone, inside a wallet's own browser:** the wallet is detected and signs in with one tap.
 - **Base Account:** also offered, and it's the only wallet that supports **auto-pay** (spend permissions). Everyone else joins with "I'll pay each round". Base Account sign-in goes through keys.coinbase.com, which is blocked in some countries (including Nigeria), so it's never the only option.
 
