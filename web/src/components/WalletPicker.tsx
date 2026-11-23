@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useConnect, type Connector } from "wagmi";
 import s from "./WalletPicker.module.css";
 
-type Props = { open: boolean; onClose: () => void };
+type Props = { open: boolean; onClose: () => void; onReopen?: () => void };
 
 const isMobile = () => typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 /** How to get back to the browser after approving in the wallet app. */
@@ -24,7 +24,7 @@ const hasInjected = () => typeof window !== "undefined" && Boolean((window as { 
  * Sign-in choices. Browser wallets come first: they work everywhere, including networks where
  * coinbase.com (and so the Base Account sign-in window) is blocked.
  */
-export function WalletPicker({ open, onClose }: Props) {
+export function WalletPicker({ open, onClose, onReopen }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const { connectors, connectAsync, isPending, variables } = useConnect();
   const [error, setError] = useState("");
@@ -51,11 +51,24 @@ export function WalletPicker({ open, onClose }: Props) {
     return { baseAccount, browserWallets, walletConnect };
   }, [connectors, env.injected]);
 
+  const pending = (c: Connector) =>
+    Boolean(isPending && variables?.connector && "id" in variables.connector && variables.connector.id === c.id);
+
   async function pick(c: Connector) {
     setError("");
     // WalletConnect opens its own window with the wallet list; ours sits in the browser's top
     // layer and would cover it, so close ours first.
-    if (c.id === "walletConnect") onClose();
+    if (c.id === "walletConnect") {
+      onClose();
+      // A tap here while an earlier attempt is still waiting (say the wallet was opened but never
+      // approved, or the phone paused the page) starts over cleanly instead of hanging on the old one.
+      if (pending(c)) {
+        try {
+          const provider = (await c.getProvider()) as { abortPairingAttempt?: () => void } | undefined;
+          provider?.abortPairingAttempt?.();
+        } catch {}
+      }
+    }
     try {
       await connectAsync({ connector: c });
       try {
@@ -81,13 +94,13 @@ export function WalletPicker({ open, onClose }: Props) {
         setError(
           "The Base Account window didn't open. On some networks, including in Nigeria, coinbase.com is blocked. Use a browser wallet instead, or turn on a VPN and try again.",
         );
-      } else if (!/reject|denied|cancel/i.test(msg)) {
+      } else if (!/reject|denied|cancel|abort/i.test(msg)) {
         setError(msg.split("\n")[0] || "That wallet didn't connect. Try again.");
+        // Our window was closed to make room for WalletConnect's, so bring it back to show why.
+        if (c.id === "walletConnect") onReopen?.();
       }
     }
   }
-
-  const pending = (c: Connector) => isPending && variables?.connector && "id" in variables.connector && variables.connector.id === c.id;
 
   return (
     <dialog ref={ref} className={s.dialog} onClose={onClose} onClick={(e) => e.target === ref.current && onClose()}>
@@ -102,7 +115,7 @@ export function WalletPicker({ open, onClose }: Props) {
         {browserWallets.length > 0 && (
           <section className={s.group} aria-label="Browser wallets">
             {browserWallets.map((c) => (
-              <button key={c.uid} className={s.option} onClick={() => pick(c)} disabled={isPending}>
+              <button key={c.uid} className={s.option} onClick={() => pick(c)} disabled={pending(c)}>
                 {c.icon ? <img src={c.icon} alt="" className={s.icon} /> : <span className={s.iconFallback}>W</span>}
                 <span className={s.text}>
                   <strong>{c.id === "injected" ? "Browser wallet" : c.name}</strong>
@@ -115,12 +128,14 @@ export function WalletPicker({ open, onClose }: Props) {
 
         {walletConnect && !(env.mobile && browserWallets.length > 0) && (
           <section className={s.group} aria-label="Wallet apps">
-            <button className={s.option} onClick={() => pick(walletConnect)} disabled={isPending}>
+            <button className={s.option} onClick={() => pick(walletConnect)}>
               <span className={s.iconFallback}>W</span>
               <span className={s.text}>
                 <strong>{env.mobile ? "Trust Wallet, MetaMask & more" : "Phone wallet (scan a QR code)"}</strong>
                 <span>
-                  {env.mobile
+                  {pending(walletConnect)
+                    ? "Waiting for your wallet. Tap to start again."
+                    : env.mobile
                     ? `Pick your wallet app and approve. Then ${env.back}.`
                     : "Trust Wallet, MetaMask, OKX and more, via WalletConnect."}
                 </span>
@@ -141,7 +156,7 @@ export function WalletPicker({ open, onClose }: Props) {
 
         {baseAccount && (
           <section className={s.group} aria-label="Base Account">
-            <button className={s.option} onClick={() => pick(baseAccount)} disabled={isPending}>
+            <button className={s.option} onClick={() => pick(baseAccount)} disabled={pending(baseAccount)}>
               <span className={`${s.iconFallback} ${s.base}`}>B</span>
               <span className={s.text}>
                 <strong>Base Account</strong>

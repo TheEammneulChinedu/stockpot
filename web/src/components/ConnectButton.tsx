@@ -21,7 +21,7 @@ export function ConnectButton({ label = "Sign in" }: { label?: string }) {
       <button className="btn btn-ghost" style={{ minHeight: 40 }} onClick={() => setOpen(true)}>
         {label}
       </button>
-      <WalletPicker open={open} onClose={() => setOpen(false)} />
+      <WalletPicker open={open} onClose={() => setOpen(false)} onReopen={() => setOpen(true)} />
     </>
   );
 }
