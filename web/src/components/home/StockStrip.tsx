@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useReadContracts } from "wagmi";
+import { usePublicClient, useReadContracts } from "wagmi";
 import type { Address } from "viem";
 import { LAUNCH_STOCKS } from "@/lib/stocks";
+import { feedAbi, loadDayMoves, sessionStart, type DayMove } from "@/lib/marketHistory";
 import s from "./StockStrip.module.css";
 
 /**
@@ -33,26 +34,18 @@ const TOKENS: Record<string, Address> = {
   METAc: "0xb2000000000000000000008bC8786B856E61707C",
 };
 
-const feedAbi = [
-  {
-    type: "function",
-    name: "latestRoundData",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [
-      { name: "roundId", type: "uint80" },
-      { name: "answer", type: "int256" },
-      { name: "startedAt", type: "uint256" },
-      { name: "updatedAt", type: "uint256" },
-      { name: "answeredInRound", type: "uint80" },
-    ],
-  },
-  { type: "function", name: "decimals", stateMutability: "view", inputs: [], outputs: [{ type: "uint8" }] },
-] as const;
-
 const multiplierAbi = [
   { type: "function", name: "multiplier", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
 ] as const;
+
+const stocks = LAUNCH_STOCKS.filter((st) => FEEDS[st.ticker] && TOKENS[st.ticker]);
+const feedList = stocks.map((st) => FEEDS[st.ticker]);
+
+const contracts = stocks.flatMap((st) => [
+  { address: FEEDS[st.ticker], abi: feedAbi, functionName: "latestRoundData" } as const,
+  { address: FEEDS[st.ticker], abi: feedAbi, functionName: "decimals" } as const,
+  { address: TOKENS[st.ticker], abi: multiplierAbi, functionName: "multiplier" } as const,
+]);
 
 /** Regular US trading hours (9:30 to 16:00 New York time, Monday to Friday). Holidays not included. */
 function usMarketOpen(now = new Date()) {
@@ -81,19 +74,39 @@ function ago(seconds: number) {
 const usd = (v: number) =>
   `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-const stocks = LAUNCH_STOCKS.filter((st) => FEEDS[st.ticker] && TOKENS[st.ticker]);
+function Arrow({ dir }: { dir: "up" | "down" | "flat" }) {
+  return (
+    <svg className={`${s.arrow} ${dir === "down" ? s.arrowDown : ""}`} viewBox="0 0 12 12" aria-hidden>
+      <path d="M6 1.5 10.5 7H7.5v3.5h-3V7H1.5z" fill="currentColor" />
+    </svg>
+  );
+}
 
-const contracts = stocks.flatMap((st) => [
-    { address: FEEDS[st.ticker], abi: feedAbi, functionName: "latestRoundData" } as const,
-    { address: FEEDS[st.ticker], abi: feedAbi, functionName: "decimals" } as const,
-    { address: TOKENS[st.ticker], abi: multiplierAbi, functionName: "multiplier" } as const,
-]);
+function Spark({ points, dir, live }: { points: number[]; dir: "up" | "down" | "flat"; live: boolean }) {
+  if (points.length < 2) return <div className={s.sparkEmpty} />;
+  const w = 120;
+  const h = 32;
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const range = max - min || 1;
+  const xy = points.map((p, i) => [(i / (points.length - 1)) * w, h - 3 - ((p - min) / range) * (h - 6)] as const);
+  const d = xy.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
+  const [ex, ey] = xy[xy.length - 1];
+  return (
+    <svg className={`${s.spark} ${dir === "down" ? s.sparkDown : dir === "up" ? s.sparkUp : ""}`} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden>
+      <path d={`${d} L${w} ${h} L0 ${h} Z`} className={s.sparkFill} />
+      <path d={d} className={s.sparkLine} vectorEffect="non-scaling-stroke" />
+      <circle cx={ex} cy={ey} r="2.5" className={live ? s.sparkDotLive : s.sparkDot} />
+    </svg>
+  );
+}
 
 export function StockStrip() {
+  const client = usePublicClient();
   const { data } = useReadContracts({
     contracts,
     allowFailure: true,
-    query: { refetchInterval: 30_000, refetchOnWindowFocus: true },
+    query: { refetchInterval: 20_000, refetchOnWindowFocus: true },
   });
 
   const [now, setNow] = useState(() => Date.now());
@@ -102,8 +115,22 @@ export function StockStrip() {
     return () => clearInterval(t);
   }, []);
 
+  // Previous close and today's path, loaded once per session.
+  const start = sessionStart(now);
+  const [moves, setMoves] = useState<(DayMove | null)[]>([]);
+  useEffect(() => {
+    if (!client) return;
+    let alive = true;
+    loadDayMoves(client, feedList, start)
+      .then((m) => alive && setMoves(m))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [client, start]);
+
   const prices = useMemo(() => {
-    const out: Record<string, { price: number; updatedAt: number } | undefined> = {};
+    const out: Record<string, { price: number; raw: number; mult: number; updatedAt: number } | undefined> = {};
     stocks.forEach((st, i) => {
       const round = data?.[i * 3]?.result as readonly [bigint, bigint, bigint, bigint, bigint] | undefined;
       const dec = data?.[i * 3 + 1]?.result as number | undefined;
@@ -111,25 +138,39 @@ export function StockStrip() {
       if (!round || dec == null || round[1] <= 0n) return;
       // Missing multiplier means 1:1 with the share.
       const m = mult && mult > 0n ? Number(mult) / 1e18 : 1;
-      out[st.ticker] = { price: (Number(round[1]) / 10 ** dec) * m, updatedAt: Number(round[3]) };
+      const raw = Number(round[1]) / 10 ** dec;
+      out[st.ticker] = { price: raw * m, raw, mult: m, updatedAt: Number(round[3]) };
     });
     return out;
   }, [data]);
 
-  // Briefly highlight a price when it moves, so the strip reads as live.
+  // Ticks seen while the page is open extend the sparkline in real time.
+  const [ticks, setTicks] = useState<Record<string, number[]>>({});
   const last = useRef<Record<string, number>>({});
   const [moved, setMoved] = useState<Record<string, "up" | "down">>({});
   useEffect(() => {
-    const next: Record<string, "up" | "down"> = {};
+    const flash: Record<string, "up" | "down"> = {};
+    const add: Record<string, number> = {};
     for (const [t, p] of Object.entries(prices)) {
+      if (!p) continue;
       const prev = last.current[t];
-      if (p && prev != null && p.price !== prev) next[t] = p.price > prev ? "up" : "down";
-      if (p) last.current[t] = p.price;
+      if (prev != null && p.raw !== prev) {
+        flash[t] = p.raw > prev ? "up" : "down";
+        add[t] = p.raw;
+      }
+      last.current[t] = p.raw;
     }
-    if (Object.keys(next).length) {
-      setMoved(next);
-      const t = setTimeout(() => setMoved({}), 1600);
-      return () => clearTimeout(t);
+    if (Object.keys(add).length) {
+      setTicks((cur) => {
+        const next = { ...cur };
+        for (const [t, v] of Object.entries(add)) next[t] = [...(cur[t] ?? []), v].slice(-40);
+        return next;
+      });
+    }
+    if (Object.keys(flash).length) {
+      setMoved(flash);
+      const timer = setTimeout(() => setMoved({}), 1800);
+      return () => clearTimeout(timer);
     }
   }, [prices]);
 
@@ -152,19 +193,44 @@ export function StockStrip() {
           )}
         </div>
         <ul className={s.list}>
-          {stocks.map((st) => {
+          {stocks.map((st, i) => {
             const p = prices[st.ticker];
-            const dir = moved[st.ticker];
+            const move = moves[i];
+            const tick = moved[st.ticker];
+            const change = p && move ? (p.raw - move.prevClose) / move.prevClose : null;
+            const dir: "up" | "down" | "flat" =
+              change == null || Math.abs(change) < 0.00005 ? "flat" : change > 0 ? "up" : "down";
+            const tail = ticks[st.ticker] ?? [];
+            const nowRaw = p?.raw ?? move?.series.at(-1);
+            const series = move
+              ? [...move.series.slice(0, -1), ...tail, ...(nowRaw != null && tail.at(-1) !== nowRaw ? [nowRaw] : [])]
+              : [];
             return (
-              <li key={st.ticker} className={s.item}>
+              <li
+                key={st.ticker}
+                className={`${s.item} ${dir === "up" ? s.itemUp : dir === "down" ? s.itemDown : ""} ${tick ? s.ticked : ""}`}
+              >
                 <span className={s.company}>{st.company}</span>
                 <span className={s.ticker}>{st.ticker}</span>
-                <span
-                  className={`${s.price} ${dir === "up" ? s.up : dir === "down" ? s.down : ""}`}
-                  aria-live="polite"
-                >
-                  {p ? usd(p.price) : <span className={s.loading}>loading</span>}
-                </span>
+                <div className={s.priceRow}>
+                  <span
+                    className={`${s.price} ${tick === "up" ? s.up : tick === "down" ? s.down : ""}`}
+                    aria-live="polite"
+                  >
+                    {p ? usd(p.price) : <span className={s.loading}>loading</span>}
+                  </span>
+                  {change != null && (
+                    <span
+                      key={tick ? `${st.ticker}-${p?.raw}` : st.ticker}
+                      className={`${s.badge} ${dir === "up" ? s.badgeUp : dir === "down" ? s.badgeDown : s.badgeFlat} ${tick ? s.nudge : ""}`}
+                      aria-label={`${change >= 0 ? "Up" : "Down"} ${Math.abs(change * 100).toFixed(2)}% today`}
+                    >
+                      {dir !== "flat" && <Arrow dir={dir} />}
+                      {`${change >= 0 ? "+" : "−"}${Math.abs(change * 100).toFixed(2)}%`}
+                    </span>
+                  )}
+                </div>
+                <Spark points={series} dir={dir} live={open} />
               </li>
             );
           })}
@@ -172,7 +238,7 @@ export function StockStrip() {
         <p className={s.note}>
           {haveAny
             ? open
-              ? `Live prices per token from the Chainlink feeds pots settle against. Last update ${ago(now / 1000 - newest)}.`
+              ? `Live prices per token from the Chainlink feeds pots settle against, with the change since yesterday's close. Last update ${ago(now / 1000 - newest)}.`
               : `Prices per token from the Chainlink feeds pots settle against, as of the last trading session (${ago(now / 1000 - newest)}). Pots settle when the market reopens.`
             : "Prices per token from the Chainlink feeds pots settle against."}
         </p>

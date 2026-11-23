@@ -7,44 +7,17 @@
   display: grid;
   gap: 24px;
 }
-.title {
-  font-size: var(--t-lg);
-  color: #fff;
-  max-width: 34ch;
-}
-.list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 1px;
-  background: rgba(191, 227, 255, 0.16);
-  border: 1px solid rgba(191, 227, 255, 0.16);
-  border-radius: var(--radius-m);
-  overflow: hidden;
-}
-.item {
-  background: var(--harbor);
-  padding: 18px 18px 16px;
-  display: grid;
-  gap: 2px;
-}
-.company {
-  font-weight: 600;
-  color: #fff;
-}
-.ticker {
-  font-family: var(--font-display);
-  font-size: var(--t-xs);
-  color: var(--frost);
-}
 .head {
   display: flex;
   flex-wrap: wrap;
   align-items: end;
   justify-content: space-between;
   gap: 12px 24px;
+}
+.title {
+  font-size: var(--t-lg);
+  color: #fff;
+  max-width: 34ch;
 }
 .status {
   display: inline-flex;
@@ -62,19 +35,128 @@
 }
 .dotLive {
   background: #3ee08f;
-  box-shadow: 0 0 0 0 rgba(62, 224, 143, 0.6);
   animation: pulse 2s ease-out infinite;
 }
 .dotClosed {
   background: #a9bce6;
 }
 @keyframes pulse {
+  from {
+    box-shadow: 0 0 0 0 rgba(62, 224, 143, 0.6);
+  }
   to {
     box-shadow: 0 0 0 8px rgba(62, 224, 143, 0);
   }
 }
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+.item {
+  --tint: 191, 227, 255;
+  position: relative;
+  padding: 16px 16px 12px;
+  display: grid;
+  gap: 2px;
+  border-radius: var(--radius-m);
+  background: linear-gradient(180deg, rgba(var(--tint), 0.07), rgba(var(--tint), 0.02));
+  border: 1px solid rgba(var(--tint), 0.16);
+  transition: border-color 0.4s ease, transform 0.25s ease, background 0.4s ease;
+}
+.item:hover {
+  transform: translateY(-2px);
+  border-color: rgba(var(--tint), 0.4);
+}
+.itemUp {
+  --tint: 62, 224, 143;
+}
+.itemDown {
+  --tint: 255, 107, 107;
+}
+.ticked {
+  border-color: rgba(var(--tint), 0.7);
+}
+.priceRow {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.company {
+  font-weight: 600;
+  color: #fff;
+}
+.ticker {
+  font-family: var(--font-display);
+  font-size: var(--t-xs);
+  color: var(--frost);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px 2px 5px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.badgeUp {
+  color: #3ee08f;
+  background: rgba(62, 224, 143, 0.14);
+}
+.badgeDown {
+  color: #ff7b7b;
+  background: rgba(255, 107, 107, 0.14);
+}
+.badgeFlat {
+  color: #a9bce6;
+  background: rgba(169, 188, 230, 0.12);
+}
+.arrow {
+  width: 11px;
+  height: 11px;
+  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.arrowDown {
+  transform: rotate(180deg);
+}
+.nudge .arrow {
+  animation: nudgeUp 0.9s ease;
+}
+.nudge .arrowDown {
+  animation: nudgeDown 0.9s ease;
+}
+@keyframes nudgeUp {
+  30% {
+    transform: translateY(-3px);
+  }
+  60% {
+    transform: translateY(1px);
+  }
+}
+@keyframes nudgeDown {
+  0%,
+  100% {
+    transform: rotate(180deg);
+  }
+  30% {
+    transform: rotate(180deg) translateY(-3px);
+  }
+  60% {
+    transform: rotate(180deg) translateY(1px);
+  }
+}
+
 .price {
-  margin-top: 6px;
   font-family: var(--font-display);
   font-size: var(--t-md, 1.125rem);
   font-variant-numeric: tabular-nums;
@@ -86,11 +168,11 @@
   margin-left: -4px;
 }
 .up {
-  background: rgba(62, 224, 143, 0.18);
+  background: rgba(62, 224, 143, 0.2);
   color: #7ff0b6;
 }
 .down {
-  background: rgba(255, 107, 107, 0.18);
+  background: rgba(255, 107, 107, 0.2);
   color: #ffaaaa;
 }
 .loading {
@@ -98,15 +180,66 @@
   font-size: var(--t-xs);
   color: #a9bce6;
 }
-@media (prefers-reduced-motion: reduce) {
-  .dotLive {
-    animation: none;
-  }
-  .price {
-    transition: none;
+
+.spark,
+.sparkEmpty {
+  width: 100%;
+  height: 32px;
+  margin-top: 8px;
+}
+.spark {
+  display: block;
+  overflow: visible;
+  color: #a9bce6;
+}
+.sparkUp {
+  color: #3ee08f;
+}
+.sparkDown {
+  color: #ff7b7b;
+}
+.sparkLine {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.sparkFill {
+  fill: currentColor;
+  opacity: 0.1;
+}
+.sparkDot,
+.sparkDotLive {
+  fill: currentColor;
+}
+.sparkDotLive {
+  animation: blink 1.6s ease-in-out infinite;
+}
+@keyframes blink {
+  50% {
+    opacity: 0.35;
   }
 }
+
 .note {
   font-size: var(--t-xs);
   color: #a9bce6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dotLive,
+  .sparkDotLive,
+  .nudge .arrow,
+  .nudge .arrowDown {
+    animation: none;
+  }
+  .price,
+  .arrow,
+  .item {
+    transition: none;
+  }
+  .item:hover {
+    transform: none;
+  }
 }
