@@ -80,7 +80,7 @@ export default function StatsPage() {
           <div className={a.panel}>
             <Goal label="Pots" value={n} goal={GOALS.pots} />
             <Goal label="Seats" value={seats} goal={GOALS.seats} />
-            <p className={a.help}>Goals for the end of the hackathon, 4 December 2026.</p>
+            <p className={a.help}>Goals for the end of the hackathon, 12 December 2026.</p>
           </div>
 
           {rows.length > 0 && (

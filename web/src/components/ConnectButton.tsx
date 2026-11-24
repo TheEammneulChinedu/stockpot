@@ -11,8 +11,13 @@ export function ConnectButton({ label = "Sign in" }: { label?: string }) {
 
   if (isConnected && address) {
     return (
-      <button className="btn btn-ghost" style={{ minHeight: 40 }} onClick={() => disconnect()} title="Sign out">
-        {address.slice(0, 6)}…{address.slice(-4)}
+      <button
+        className="btn btn-ghost"
+        style={{ minHeight: 40, whiteSpace: "nowrap" }}
+        onClick={() => disconnect()}
+        title="Sign out"
+      >
+        {address.slice(0, 4)}…{address.slice(-4)}
       </button>
     );
   }
