@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "@fontsource-variable/unbounded";
 import "@fontsource-variable/instrument-sans";
+import "@fontsource-variable/archivo/wdth.css";
 import "./globals.css";
 import { Providers } from "./providers";
 import { SiteHeader } from "@/components/SiteHeader";
