@@ -76,6 +76,10 @@
   font-family: var(--font-display);
   font-weight: 600;
 }
+.app {
+  background: #e8f7ef;
+  color: #0f8a55;
+}
 .base {
   background: var(--cobalt);
 }

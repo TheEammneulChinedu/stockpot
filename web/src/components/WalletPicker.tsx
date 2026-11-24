@@ -28,9 +28,11 @@ export function WalletPicker({ open, onClose, onReopen }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const { connectors, connectAsync, isPending, variables } = useConnect();
   const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
   const [env, setEnv] = useState({ mobile: false, injected: false, url: "", back: "come back here" });
 
   useEffect(() => {
+    setCopied(false);
     setEnv({ mobile: isMobile(), injected: hasInjected(), url: window.location.href, back: backHint() });
   }, [open]);
 
@@ -94,6 +96,14 @@ export function WalletPicker({ open, onClose, onReopen }: Props) {
         setError(
           "The Base Account window didn't open. On some networks, including in Nigeria, coinbase.com is blocked. Use a browser wallet instead, or turn on a VPN and try again.",
         );
+      } else if (c.id === "walletConnect" && /publish|relay|socket|network|fetch|timeout|timed out|offline/i.test(msg)) {
+        // WalletConnect's relay servers are blocked or throttled on some networks, Nigeria included.
+        setError(
+          env.mobile
+            ? "WalletConnect couldn't reach its servers. This happens on some networks, including in Nigeria. Use \u201cOpen in your wallet app\u201d above instead, or turn on a VPN and try again."
+            : "WalletConnect couldn't reach its servers. This happens on some networks, including in Nigeria. Use a browser wallet instead, or turn on a VPN and try again.",
+        );
+        onReopen?.();
       } else if (!/reject|denied|cancel|abort/i.test(msg)) {
         setError(msg.split("\n")[0] || "That wallet didn't connect. Try again.");
         // Our window was closed to make room for WalletConnect's, so bring it back to show why.
@@ -123,6 +133,35 @@ export function WalletPicker({ open, onClose, onReopen }: Props) {
                 </span>
               </button>
             ))}
+          </section>
+        )}
+
+        {env.mobile && browserWallets.length === 0 && (
+          <section className={s.group} aria-label="Open in your wallet app">
+            <button
+              className={s.option}
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(env.url);
+                } catch {}
+                setCopied(true);
+              }}
+            >
+              <span className={`${s.iconFallback} ${s.app}`} aria-hidden>
+                <svg viewBox="0 0 24 24" width="22" height="22">
+                  <rect x="6" y="2.5" width="12" height="19" rx="3" fill="none" stroke="currentColor" strokeWidth="2" />
+                  <path d="M10.5 18h3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              </span>
+              <span className={s.text}>
+                <strong>Open in your wallet app</strong>
+                <span>
+                  {copied
+                    ? "Link copied. In Trust Wallet, MetaMask, OKX or Bitget, tap the browser or search bar, paste it and go."
+                    : "Most reliable. Tap to copy the link, then paste it into your wallet app\u2019s browser."}
+                </span>
+              </span>
+            </button>
           </section>
         )}
 
