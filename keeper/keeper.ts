@@ -13,7 +13,7 @@
  *   KEEPER_PRIVATE_KEY=0x… FACTORY_ADDRESS=0x… ZEROX_API_KEY=… BUILDER_CODE=… npm run tick
  */
 import { Attribution } from "ox/erc8021";
-import { createPublicClient, createWalletClient, decodeFunctionData, erc20Abi, formatUnits, http, type Address, type Hex } from "viem";
+import { createPublicClient, createWalletClient, decodeFunctionData, encodeFunctionData, erc20Abi, formatUnits, http, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { potAbi } from "./Pot.js";
@@ -92,6 +92,68 @@ async function quoteHydrex(sellAmount: bigint, buyToken: Address, taker: Address
   return { venue: `hydrex/${j.quote.source ?? "?"}`, target: swap.to, spender, data: swap.data, buyAmount: BigInt(j.quote.amountOut) };
 }
 
+/**
+ * Aerodrome Slipstream, the main onchain market for Coinbase's tokenized stocks: USDC/stock
+ * concentrated-liquidity pools (tick spacing 10) behind Aerodrome's equity SwapRouter. No API needed:
+ * we build exactInputSingle ourselves with the pot as recipient and the pot's own price guard as the
+ * minimum out. (0x refuses these tokens: BUY_TOKEN_NOT_AUTHORIZED_FOR_TRADE.)
+ * Pools and router from Bankr's aero-stock-lp skill; router verified on Basescan as SwapRouter.
+ */
+const AERO_EQUITY_ROUTER = "0x698cb2b6dd822994581fea6ea4fc755d1363a92f" as Address;
+const AERO_TICK_SPACING: Record<string, number> = {
+  "0xb20000000000000000000078ee7ce2fe4908108c": 10, // NVDAc, pool 0x853f5f1b…7ab9
+  "0xb200000000000000000000c2e324d24d7eecd1fb": 10, // AAPLc, pool 0xa3b1e3f9…94f0
+  "0xb2000000000000000000002d0ba3164cc74f58b7": 10, // GOOGLc, pool 0xb1987cad…5542
+  "0xb2000000000000000000008bc8786b856e61707c": 10, // METAc, pool 0xeaf57753…273e
+};
+const aeroRouterAbi = [
+  {
+    type: "function",
+    name: "exactInputSingle",
+    stateMutability: "payable",
+    inputs: [
+      {
+        name: "params",
+        type: "tuple",
+        components: [
+          { name: "tokenIn", type: "address" },
+          { name: "tokenOut", type: "address" },
+          { name: "tickSpacing", type: "int24" },
+          { name: "recipient", type: "address" },
+          { name: "deadline", type: "uint256" },
+          { name: "amountIn", type: "uint256" },
+          { name: "amountOutMinimum", type: "uint256" },
+          { name: "sqrtPriceLimitX96", type: "uint160" },
+        ],
+      },
+    ],
+    outputs: [{ name: "amountOut", type: "uint256" }],
+  },
+] as const;
+
+async function quoteAerodrome(sellAmount: bigint, buyToken: Address, pot: Address, minOut: bigint): Promise<SwapRoute> {
+  const tickSpacing = AERO_TICK_SPACING[buyToken.toLowerCase()];
+  if (!tickSpacing) throw new Error("no Aerodrome pool configured for this stock");
+  const data = encodeFunctionData({
+    abi: aeroRouterAbi,
+    functionName: "exactInputSingle",
+    args: [
+      {
+        tokenIn: USDC,
+        tokenOut: buyToken,
+        tickSpacing,
+        recipient: pot,
+        deadline: BigInt(Math.floor(Date.now() / 1000) + 900),
+        amountIn: sellAmount,
+        amountOutMinimum: minOut,
+        sqrtPriceLimitX96: 0n,
+      },
+    ],
+  });
+  // The exact output is checked by simulating settleRound before sending; the router enforces minOut.
+  return { venue: "aerodrome", target: AERO_EQUITY_ROUTER, spender: AERO_EQUITY_ROUTER, data, buyAmount: minOut };
+}
+
 /** 0x Swap API v2 (allowance-holder flow): the pot approves and calls the AllowanceHolder. Fallback venue. */
 async function quote0x(sellAmount: bigint, buyToken: Address, taker: Address): Promise<SwapRoute> {
   const qs = new URLSearchParams({
@@ -111,14 +173,19 @@ async function quote0x(sellAmount: bigint, buyToken: Address, taker: Address): P
 }
 
 /**
- * Routes are tried in order (SWAP_VENUES, default "hydrex,0x"). A route is only used if both its
+ * Routes are tried in order (SWAP_VENUES, default "aerodrome,hydrex,0x"). A route is only used if both its
  * target and spender are allowlisted on the factory and it beats the pot's onchain price guard.
  */
 async function bestRoute(pot: Address, amount: bigint, stock: Address, minOut: bigint): Promise<SwapRoute | null> {
-  const venues = (process.env.SWAP_VENUES || "hydrex,0x").split(",").map((v) => v.trim());
+  const venues = (process.env.SWAP_VENUES || "aerodrome,hydrex,0x").split(",").map((v) => v.trim());
   for (const v of venues) {
     try {
-      const r = v === "hydrex" ? await quoteHydrex(amount, stock, pot) : await quote0x(amount, stock, pot);
+      const r =
+        v === "aerodrome"
+          ? await quoteAerodrome(amount, stock, pot, minOut)
+          : v === "hydrex"
+            ? await quoteHydrex(amount, stock, pot)
+            : await quote0x(amount, stock, pot);
       const [okT, okS] = await Promise.all([
         pub.readContract({ address: FACTORY, abi: potFactoryAbi, functionName: "isRouter", args: [r.target] }),
         pub.readContract({ address: FACTORY, abi: potFactoryAbi, functionName: "isRouter", args: [r.spender] }),
@@ -171,6 +238,15 @@ async function tickPot(pot: Address) {
           if (!route) {
             log("  no venue beat the price guard; trying again next tick");
           } else {
+            // Dry-run the whole settlement first: if the swap would miss the price guard or fail,
+            // this throws with the reason and nothing is spent.
+            await pub.simulateContract({
+              account,
+              address: pot,
+              abi: potAbi,
+              functionName: "settleRound",
+              args: [route.target, route.spender, route.data],
+            });
             log(`  settling via ${route.venue}`);
             await send(pot, "settleRound", [route.target, route.spender, route.data]);
           }
