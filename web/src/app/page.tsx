@@ -61,7 +61,7 @@ export default function Home() {
           <div className={s.heroAside}>
             <p className={s.lede}>
               Save with your people, a few dollars a round. Each round one of you collects the whole pot as NVIDIA,
-              Apple or Tesla stock on Base.
+              Apple, Meta or Google stock on Base.
             </p>
             <div className={s.ctas}>
               <Link href="/start" className="btn btn-primary">

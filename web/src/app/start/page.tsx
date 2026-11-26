@@ -9,7 +9,7 @@ import { ConnectButton } from "@/components/ConnectButton";
 import { potFactoryAbi } from "@/lib/abi/PotFactory";
 import { EMPTY_PERMISSION, toContractPermission } from "@/lib/pot";
 import { lockFor, money } from "@/lib/potMath";
-import { LAUNCH_STOCKS } from "@/lib/stocks";
+import { PAYOUT_CHOICES } from "@/lib/stocks";
 import { useStockAddresses } from "@/lib/useStockAddresses";
 import { useWallet } from "@/lib/useWallet";
 import { dataSuffix, FACTORY_ADDRESS, USDC_ADDRESS } from "@/lib/wagmi";
@@ -169,7 +169,7 @@ export default function StartPage() {
               Pays out in
             </span>
             <div className={a.options} role="radiogroup" aria-labelledby="f-stock">
-              {LAUNCH_STOCKS.map((s) => (
+              {PAYOUT_CHOICES.map((s) => (
                 <label key={s.ticker} className={a.option} data-on={ticker === s.ticker}>
                   <input type="radio" className="visually-hidden" checked={ticker === s.ticker} onChange={() => setTicker(s.ticker)} />
                   {s.company}

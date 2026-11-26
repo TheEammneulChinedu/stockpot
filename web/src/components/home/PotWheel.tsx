@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LAUNCH_STOCKS } from "@/lib/stocks";
+import { PAYOUT_CHOICES } from "@/lib/stocks";
 import { money, newMembers, runRound, type RoundResult, type SimMember } from "@/lib/potMath";
 import s from "./PotWheel.module.css";
 
@@ -325,7 +325,7 @@ export function PotWheel() {
               Pays out in
             </span>
             <div className={s.tickers} role="radiogroup" aria-labelledby="pw-stock">
-              {LAUNCH_STOCKS.slice(0, 5).map((st) => (
+              {PAYOUT_CHOICES.map((st) => (
                 <label key={st.ticker} className={s.tickerOpt} data-on={st.ticker === ticker}>
                   <input
                     type="radio"

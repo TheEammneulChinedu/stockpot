@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     "Save with your people in small amounts. Each round, one member collects the whole pot as real tokenized US stock on Base.",
   openGraph: {
     title: "Stockpot: the ajo that pays out in stocks",
-    description: "Rotating savings circles that pay out in NVIDIA, Apple, Tesla and more, on Base.",
+    description: "Rotating savings circles that pay out in NVIDIA, Apple, Meta and Google stock, on Base.",
   },
 };
 

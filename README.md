@@ -1,6 +1,6 @@
 # Stockpot
 
-**Savings circles that pay out in stocks.** The rotating savings circle goes by many names: ajo and esusu in Nigeria, susu in Ghana and the Caribbean, chama in Kenya, stokvel in South Africa, tontine in francophone Africa, tanda in Mexico, chit fund in India, arisan in Indonesia, paluwagan in the Philippines. Stockpot runs one on Base: members pay a few dollars of USDC each round, and each round one member collects the whole pot as a Coinbase tokenized stock (NVDAc, AAPLc, TSLAc…).
+**Savings circles that pay out in stocks.** The rotating savings circle goes by many names: ajo and esusu in Nigeria, susu in Ghana and the Caribbean, chama in Kenya, stokvel in South Africa, tontine in francophone Africa, tanda in Mexico, chit fund in India, arisan in Indonesia, paluwagan in the Philippines. Stockpot runs one on Base: members pay a few dollars of USDC each round, and each round one member collects the whole pot as a Coinbase tokenized stock (NVDAc, AAPLc, METAc or GOOGLc).
 
 The new mechanic is that **the stock you collect is your collateral**. When you collect, the part of your payout worth 1.25x what you still owe stays frozen in the pot and thaws a slice with each payment you make. If you skip a round after collecting, that round's collector is paid in kind from your frozen stock. If you skip before collecting, the amount is deducted from your own payout and repaid to whoever was short. That makes circles with strangers safe.
 
@@ -16,7 +16,7 @@ Built in public for **Base Stocks Maxxing Season** (Nov 5 to Dec 5, 2026), track
 | Owner (config only, cannot move funds) | `0xE2456263C1109790433F8428ecA4C05f8941550f` |
 | Keeper (gas only, permissionless calls) | `0x12b695f48BeC9AD5bdF1591b2b4De93746160857` |
 
-Enabled stocks: NVDAc, AAPLc, TSLAc, MSFTc, AMZNc, GOOGLc, METAc. Router: 0x AllowanceHolder.
+Enabled stocks on the factory: NVDAc, AAPLc, TSLAc, MSFTc, AMZNc, GOOGLc, METAc. The app offers the four with Aerodrome pools the keeper can buy from (NVDAc, AAPLc, METAc, GOOGLc). Allowlisted routers: Aerodrome's equity SwapRouter `0x698cb2b6dd822994581fea6ea4fc755d1363a92f` (used) and 0x AllowanceHolder (0x refuses tokenized stocks, so it is unused).
 
 ## Repo
 
@@ -24,7 +24,7 @@ Enabled stocks: NVDAc, AAPLc, TSLAc, MSFTc, AMZNc, GOOGLc, METAc. Router: 0x All
 | --- | --- |
 | `contracts/` | Foundry. `PotFactory.sol` (config, CREATE2 pots, Chainlink pricing) and `Pot.sol` (one circle). 17 tests |
 | `web/` | Next.js 15 static app: homepage with interactive demo, `/start`, `/pot?address=`, `/stats` |
-| `keeper/` | One-shot script that pulls contributions, settles due rounds via the best swap quote (Hydrex first, falling back to 0x), and pushes stock to members |
+| `keeper/` | One-shot script that pulls contributions, settles due rounds by buying the stock on Aerodrome (Hydrex and 0x are tried as fallbacks), with a dry run of each settlement before it is sent, and pushes stock to members |
 | `.github/workflows/keeper.yml` | Runs the keeper every 10 minutes on weekdays |
 
 ## Signing in

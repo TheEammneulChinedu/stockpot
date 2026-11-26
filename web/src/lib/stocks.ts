@@ -13,6 +13,13 @@ export const LAUNCH_STOCKS: StockMeta[] = [
   { ticker: "GOOGLc", company: "Alphabet", underlying: "GOOGL" },
 ];
 
+/**
+ * Stocks a pot can actually settle in today: the keeper buys on Aerodrome, which has USDC pools for
+ * these four. Add a ticker here only once its pool is added to the keeper's AERO_TICK_SPACING too.
+ */
+export const PAYOUT_STOCKS = new Set(["NVDAc", "AAPLc", "METAc", "GOOGLc"]);
+export const PAYOUT_CHOICES: StockMeta[] = LAUNCH_STOCKS.filter((s) => PAYOUT_STOCKS.has(s.ticker));
+
 export const TOKENIZED_STOCKS_API = "https://api.coinbase.com/v1/tokenized-stocks";
 
 export type ApiStock = {
