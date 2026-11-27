@@ -27,6 +27,16 @@ Enabled stocks on the factory: NVDAc, AAPLc, TSLAc, MSFTc, AMZNc, GOOGLc, METAc.
 | `keeper/` | One-shot script that pulls contributions, settles due rounds by buying the stock on Aerodrome (Hydrex and 0x are tried as fallbacks), with a dry run of each settlement before it is sent, and pushes stock to members |
 | `.github/workflows/keeper.yml` | Runs the keeper every 10 minutes on weekdays |
 
+## Use Stockpot from Bankr
+
+`skills/stockpot` is a [Bankr](https://bankr.bot) skill: start a pot, join one from a link, pay your round, withdraw stock and check your pots by chatting with Bankr on X, Telegram or Farcaster. Install it by telling Bankr:
+
+```
+install the stockpot skill from https://github.com/TheEammneulChinedu/stockpot/tree/main/skills/stockpot
+```
+
+The skill's scripts read Base directly and only build unsigned transactions; Bankr submits them from your own wallet after you confirm.
+
 ## Signing in
 
 Any wallet on Base works.
