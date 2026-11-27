@@ -16,11 +16,12 @@ import { dataSuffix, FACTORY_ADDRESS, USDC_ADDRESS } from "@/lib/wagmi";
 import a from "../app.module.css";
 
 const RHYTHMS = [
-  { label: "Daily", seconds: 86_400, days: 1, help: "Rounds settle on weekdays, when stock prices are live." },
-  { label: "Weekly", seconds: 604_800, days: 7, help: "One round a week." },
+  { label: "Daily", seconds: 86_400, days: 1, help: "Rounds settle on weekdays, when stock prices are live. A round that lands on a weekend waits until Monday, and everyone always gets at least 24 hours to pay once a round opens." },
+  { label: "Weekly", seconds: 604_800, days: 7, help: "One round a week. Everyone always gets at least 24 hours to pay once a round opens." },
 ];
 
 type Step = "idle" | "permission" | "creating" | "error";
+
 
 export default function StartPage() {
   const router = useRouter();

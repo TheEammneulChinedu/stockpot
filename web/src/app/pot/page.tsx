@@ -243,8 +243,9 @@ function PotDetail({ pot, isNew }: { pot: Address; isNew: boolean }) {
           </ul>
           {status === 1 && deadline !== undefined && (
             <p className={a.help}>
-              Round {r + 1} settles when everyone has paid, or after {new Date(Number(deadline) * 1000).toLocaleString()}
-              . Settlement waits for a live stock price, so weekend rounds settle on Monday.
+              Round {r + 1} settles as soon as everyone has paid. Pay by{" "}
+              {new Date(Number(deadline) * 1000).toLocaleString()}. Rounds only settle on weekdays, and nobody is counted as
+              missing a round until it has been open for at least 24 hours, or at the weekend.
             </p>
           )}
         </section>

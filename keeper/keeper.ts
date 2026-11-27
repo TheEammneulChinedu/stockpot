@@ -13,7 +13,7 @@
  *   KEEPER_PRIVATE_KEY=0x… FACTORY_ADDRESS=0x… ZEROX_API_KEY=… BUILDER_CODE=… npm run tick
  */
 import { Attribution } from "ox/erc8021";
-import { createPublicClient, createWalletClient, decodeFunctionData, encodeFunctionData, erc20Abi, formatUnits, http, type Address, type Hex } from "viem";
+import { createPublicClient, createWalletClient, decodeFunctionData, encodeFunctionData, erc20Abi, formatUnits, getAbiItem, http, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { potAbi } from "./Pot.js";
@@ -206,6 +206,49 @@ async function bestRoute(pot: Address, amount: bigint, stock: Address, minOut: b
   return null;
 }
 
+/**
+ * Grace period. A round's deadline is fixed when the pot starts, but a round only opens for payment
+ * once the previous one settles, and nothing settles while the US market is closed. So after a
+ * weekend, a round can open with its deadline already behind it. The keeper never settles a round
+ * with missed payments until it has been open for at least GRACE_HOURS (default 24), and never counts
+ * missed payments on a Saturday or Sunday (New York time). Rounds where everyone has paid still
+ * settle straight away.
+ */
+/** Saturday or Sunday in New York: missed payments are never counted on a weekend. */
+function isWeekendNY(t = new Date()) {
+  const d = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short" }).format(t);
+  return d === "Sat" || d === "Sun";
+}
+const GRACE = BigInt(Math.round(Number(env("GRACE_HOURS", false) || "24") * 3600));
+const roundSettledEvent = getAbiItem({ abi: potAbi, name: "RoundSettled" });
+
+/** When did `round` open? Round 0 opens at start; later rounds when the previous one settled. */
+async function roundOpenedAt(pot: Address, round: bigint, startTime: bigint, deadline: bigint): Promise<bigint> {
+  if (round === 0n) return startTime;
+  try {
+    const latest = await pub.getBlockNumber();
+    const now = BigInt(Math.floor(Date.now() / 1000));
+    // Base makes a block every 2s; search back to a little before the pot started.
+    const earliest = latest - (now - startTime) / 2n - 2_000n;
+    let chunk = 10_000n;
+    let to = latest;
+    while (to > earliest) {
+      const from = to - chunk + 1n > earliest ? to - chunk + 1n : earliest;
+      try {
+        const logs = await pub.getLogs({ address: pot, event: roundSettledEvent, args: { round: round - 1n }, fromBlock: from, toBlock: to });
+        if (logs.length) return (await pub.getBlock({ blockNumber: logs[0].blockNumber })).timestamp;
+        to = from - 1n;
+      } catch (e) {
+        if (chunk <= 500n) throw e;
+        chunk /= 4n; // RPC refused the range: retry smaller
+      }
+    }
+  } catch (e) {
+    log("  couldn't find when this round opened:", (e as Error).message);
+  }
+  return deadline; // unknown: treat it as opening at its deadline, which still gives the full grace
+}
+
 async function tickPot(pot: Address) {
   const c = { address: pot, abi: potAbi } as const;
   const [status, round, members, deadline, stock] = await Promise.all([
@@ -227,7 +270,16 @@ async function tickPot(pot: Address) {
 
     const paidCount = await pub.readContract({ ...c, functionName: "paidCount", args: [round] });
     const now = BigInt(Math.floor(Date.now() / 1000));
-    if (paidCount === BigInt(members.length) || now >= deadline) {
+    let due = paidCount === BigInt(members.length);
+    if (!due && now >= deadline) {
+      const startTime = await pub.readContract({ ...c, functionName: "startTime" });
+      const opened = await roundOpenedAt(pot, round, startTime, deadline);
+      const graceEnds = opened + GRACE > deadline ? opened + GRACE : deadline;
+      if (now >= graceEnds && isWeekendNY()) log(`  round ${round + 1n} has unpaid members; not counting missed payments at the weekend, waiting for Monday`);
+      else if (now >= graceEnds) due = true;
+      else log(`  round ${round + 1n} is past its deadline but opened ${new Date(Number(opened) * 1000).toISOString()}; waiting until ${new Date(Number(graceEnds) * 1000).toISOString()} before counting missed payments`);
+    }
+    if (due) {
       try {
         // Reverts with StalePrice on weekends / holidays: we simply try again next tick.
         await pub.readContract({ ...c, functionName: "quoteMinOut", args: [1_000_000n] });

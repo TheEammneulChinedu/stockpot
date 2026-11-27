@@ -56,6 +56,7 @@ If the wallet is on another network, the app asks it to switch to Base before an
    - The collector's debts are repaid in USDC.
    - `swapAmount()` USDC is swapped through an allowlisted router. The contract ignores what the calldata claims and checks the stock actually received against `Chainlink price × B20 multiplier × (1 − 1%)`.
    - Settlement reverts on a stale feed (weekends), so it never settles against Friday's price.
+   - Grace period: the keeper never settles a round with missed payments until it has been open for at least 24 hours (`GRACE_HOURS`), so a round that opens on Monday with its deadline already past over the weekend still gives everyone a full day to pay. Missed payments are also never counted on a Saturday or Sunday (New York time). Rounds where everyone has paid settle straight away.
 3. Payout: `1.25 × remaining obligation` frozen, the rest claimable. `claimFor()` pushes to the member; a policy-blocked transfer reverts only that claim, never the pot.
 
 Safety rails: no admin over funds, no upgradeability, beta caps ($1–$25 a round, 3–10 members), slippage guard capped at 3%, reentrancy guard.
